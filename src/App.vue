@@ -1,30 +1,130 @@
-<script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
-</script>
-
 <template>
-  <div>
-    <a href="https://vitejs.dev" target="_blank">
-      <img src="/vite.svg" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://vuejs.org/" target="_blank">
-      <img src="./assets/vue.svg" class="logo vue" alt="Vue logo" />
-    </a>
+  <div id="app">
+    <div v-if="!currentRoom">
+      <button @click="createRoom">Create Room</button>
+      <input v-model="roomIdInput" placeholder="Room ID" />
+      <button @click="joinRoom">Join Room</button>
+    </div>
+    <div v-if="currentRoom && !name">
+      <input v-model="nameInput" placeholder="Enter your name" />
+      <button @click="setName">Submit</button>
+    </div>
+    <div v-if="currentRoom && name">
+      <h3>Room: {{ currentRoom }}</h3>
+      <p>Users:</p>
+      <ul>
+        <li v-for="(user, id) in users" :key="id">{{ user }}</li>
+      </ul>
+      <p>Select your vote:</p>
+      <button
+        v-for="num in fibonacci"
+        :key="num"
+        @click="vote(num)"
+        :disabled="hasVoted"
+      >
+        {{ num }}
+      </button>
+      <button @click="revealVotes" :disabled="!canRevealVotes">
+        Show Results
+      </button>
+      <button @click="clearVotes">Clear Votes</button>
+      <div v-if="showVotes">
+        <p>Votes:</p>
+        <ul>
+          <li v-for="(vote, user) in votes" :key="user">
+            {{ users[user] }}: {{ vote }}
+          </li>
+        </ul>
+        <p>Average: {{ average }}</p>
+      </div>
+    </div>
   </div>
-  <HelloWorld msg="Vite + Vue" />
 </template>
 
-<style scoped>
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
-}
-</style>
+<script>
+import { io } from "socket.io-client";
+
+export default {
+  data() {
+    return {
+      socket: null,
+      name: "",
+      nameInput: "",
+      roomIdInput: "",
+      currentRoom: null,
+      users: {},
+      votes: {},
+      average: null,
+      showVotes: false,
+      fibonacci: [1, 2, 3, 5, 8, 13, 21],
+    };
+  },
+  computed: {
+    hasVoted() {
+      return this.votes[this.socket.id] !== undefined;
+    },
+    canRevealVotes() {
+      return (
+        Object.keys(this.votes).length === Object.keys(this.users).length &&
+        !this.showVotes
+      );
+    },
+  },
+  mounted() {
+    this.socket = io("http://localhost:4000");
+    this.socket.on("roomCreated", (room) => {
+      this.currentRoom = room;
+    });
+    this.socket.on("roomJoined", (room) => {
+      this.currentRoom = room;
+    });
+    this.socket.on("updateUsers", (users) => {
+      this.users = users;
+    });
+    this.socket.on("updateVotes", (votes) => {
+      // Update all votes, masking them as needed (only if not showing votes)
+      if (!this.showVotes) {
+        this.votes = votes;
+      }
+    });
+    this.socket.on("updateVote", ({ userId, vote }) => {
+      // Directly update the vote for the specific user
+      this.$set(this.votes, userId, vote);
+    });
+    this.socket.on("revealVotes", ({ votes, average }) => {
+      this.showVotes = true;
+      this.votes = votes;
+      this.average = average;
+    });
+  },
+  methods: {
+    createRoom() {
+      const room = Math.random().toString(36).substring(2, 9);
+      this.socket.emit("createRoom", room);
+    },
+    joinODz() {
+      this.socket.emit("joinRoom", this.roomIdInput);
+    },
+    setName() {
+      if (this.nameInput.trim()) {
+        this.name = this.nameInput.trim();
+        this.socket.emit("setName", {
+          room: this.currentRoom,
+          name: this.name,
+        });
+      }
+    },
+    vote(num) {
+      this.socket.emit("vote", { room: this.currentRoom, vote: num });
+    },
+    revealVotes() {
+      this.socket.emit("revealVotes", this.currentRoom);
+    },
+    clearVotes() {
+      this.showVotes = false;
+      this.votes = {};
+      this.socket.emit("clearVotes", this.currentRoom);
+    },
+  },
+};
+</script>
