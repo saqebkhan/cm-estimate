@@ -64,10 +64,7 @@ export default {
       return this.votes[this.socket.id] !== undefined;
     },
     canRevealVotes() {
-      return (
-        Object.keys(this.votes).length === Object.keys(this.users).length &&
-        !this.showVotes
-      );
+      return Object.keys(this.votes).length === Object.keys(this.users).length;
     },
   },
   mounted() {
@@ -81,15 +78,10 @@ export default {
     this.socket.on("updateUsers", (users) => {
       this.users = users;
     });
-    this.socket.on("updateVotes", (votes) => {
-      // Update all votes, masking them as needed (only if not showing votes)
+    this.socket.on("updateVotes", (votesCount) => {
       if (!this.showVotes) {
-        this.votes = votes;
+        this.votes = Array(votesCount).fill("?");
       }
-    });
-    this.socket.on("updateVote", ({ userId, vote }) => {
-      // Directly update the vote for the specific user
-      this.$set(this.votes, userId, vote);
     });
     this.socket.on("revealVotes", ({ votes, average }) => {
       this.showVotes = true;
@@ -102,7 +94,7 @@ export default {
       const room = Math.random().toString(36).substring(2, 9);
       this.socket.emit("createRoom", room);
     },
-    joinODz() {
+    joinRoom() {
       this.socket.emit("joinRoom", this.roomIdInput);
     },
     setName() {
@@ -128,3 +120,14 @@ export default {
   },
 };
 </script>
+
+<style>
+#app {
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-align: center;
+  color: #2c3e50;
+  margin-top: 60px;
+}
+</style>
